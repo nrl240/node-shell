@@ -8,32 +8,32 @@ module.exports = {
   'tail': tail,
   'sort': sort,
   'wc': wc,
-  'uniq': uniq
+  'uniq': uniq,
+  'curl': curl
 }
 
 var fs = require('fs');
 
-function pwd(args) {
-  process.stdout.write(__dirname);
-  process.stdout.write('\nprompt > ');
+function pwd(stdin, args, done) {
+  done(__dirname);
 };
 
-function date(args) {
-  process.stdout.write(new Date(Date.now()).toString());
-  process.stdout.write('\nprompt > ');
+function date(stdin, args, done) {
+  done(new Date(Date.now()).toString());
 }
 
-function ls(args) {
+function ls(stdin, args, done) {
+  var filenamesToPrint = [];
   fs.readdir('.', function(err, files) {
     if (err) throw err;
     files.forEach(function(file) {
-      process.stdout.write(file.toString() + "\n");
+      filenamesToPrint.push(file.toString());
     });
-    process.stdout.write('prompt > ');
+    done(filenamesToPrint.join('\n'));
   })
 }
 
-function echo(argsString) {
+function echo(stdin, argsString, done) {
   var args = argsString.split(' ');
   var argsToPrint = [];
 
@@ -46,29 +46,32 @@ function echo(argsString) {
     }
   });
 
-  process.stdout.write(argsToPrint.join(' '));
-  process.stdout.write('\nprompt > ');
+  // process.stdout.write(argsToPrint.join(' '));
+  // process.stdout.write('\nprompt > ');
+  done(argsToPrint.join(' '));
 }
 
-function cat(filenames, i) {
+function cat(stdin, filenames, done, i) {
+  console.log("HERE");
   var filenames = filenames.split(' ');
   var i = i || 0;
   fs.readFile(filenames[i], function(err, data) {
     if (err) throw err;
-    process.stdout.write(data.toString());
     i++;
     if (i === filenames.length) {
-      process.stdout.write('\nprompt > ');
+      done(data.toString());
     } else {
-      cat(filenames.join(' '), i);
+      process.stdout.write(data.toString());
+      cat(filenames.join(' '), done, i);
     }
   });
 }
 
-function head(filenames, i) {
+function head(stdin, filenames, done, i) {
   var filenames = filenames.split(' ');
   var i = i || 0;
-  fs.readFile(filenames[i], function(err, data) {
+
+  function processFile(data) {
     if (err) throw err;
     var lines = data.toString().split('\n');
     const numLines = 5;
@@ -81,22 +84,31 @@ function head(filenames, i) {
       }
       process.stdout.write(header);
     }
+
     for (var j = 0; j < numLines; j++) {
       linesToWrite.push(lines[j]);
     }
 
-    process.stdout.write(linesToWrite.join('\n'));
-
     i++;
     if (i === filenames.length) {
-      process.stdout.write('\nprompt > ');
+      done(linesToWrite.join('\n'));
     } else {
-      head(filenames.join(' '), i);
+      process.stdout.write(linesToWrite.join('\n'));
+      head(filenames.join(' '), done, i);
     }
-  });
+  }
+
+  if (filenames) {
+    fs.readFile(filenames[i], function(err, data) {
+      if (err) throw err;
+      processFile(data);
+    });
+  } else {
+    processFile(stdin);
+  }
 }
 
-function tail(filenames, i) {
+function tail(filenames, done, i) {
   var filenames = filenames.split(' ');
   var i = i || 0;
   fs.readFile(filenames[i], function(err, data) {
@@ -113,42 +125,38 @@ function tail(filenames, i) {
       linesToWrite.push(lines[j]);
     }
 
-    process.stdout.write(linesToWrite.join('\n'));
 
     i++;
     if (i === filenames.length) {
-      process.stdout.write('\nprompt > ');
+      done(linesToWrite.join('\n'));
     } else {
-      head(filenames.join(' '), i);
+      process.stdout.write(linesToWrite.join('\n'));
+      head(filenames.join(' '), done, i);
     }
   });
 }
 
-function sort(filename) {
+function sort(filename, done) {
   fs.readFile(filename, function(err, data) {
     if (err) throw err;
     var lines = data.toString().split('\n');
     lines.sort()
 
-    process.stdout.write(lines.join('\n'));
-    process.stdout.write('\nprompt > ');
-
+    done(lines.join('\n'));
   });
 }
 
-function wc(filename) {
+function wc(filename, done) {
   fs.readFile(filename, function(err, data) {
     if (err) throw err;
     var lines = data.toString().split('\n');
     const numLines = lines.length;
 
-    process.stdout.write(numLines + ' ' + filename);
-    process.stdout.write('\nprompt > ');
-
+    done(numLines + ' ' + filename);
   });
 }
 
-function uniq(filename) {
+function uniq(filename, done) {
   fs.readFile(filename, function(err, data) {
     if (err) throw err;
     var lines = data.toString().split('\n');
@@ -161,8 +169,15 @@ function uniq(filename) {
       prevLine = lines[i];
     }
 
-    process.stdout.write(linesToPrint.join('\n'));
-    process.stdout.write('\nprompt > ');
-
+    done(linesToPrint.join('\n'));
   });
 }
+
+function curl(url, done) {
+  var request = require('request');
+  request(url, function (err, response, body) {
+    if (err) throw err;
+    done(body);
+  });
+}
+
